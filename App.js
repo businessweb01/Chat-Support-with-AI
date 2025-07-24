@@ -17,6 +17,8 @@ import {
   Animated
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
+import { Feather } from '@expo/vector-icons';
+import { MaterialIcons } from '@expo/vector-icons';
 import { KeyboardAwareScrollView } from 'react-native-keyboard-aware-scroll-view';
 const { width, height } = Dimensions.get('window');
 
@@ -108,8 +110,8 @@ const ProblemReportModal = React.memo(({ isOpen, onClose, onSubmit, selectedAcco
   const [isSubmitting, setIsSubmitting] = useState(false);
 
   const problemTypes = useMemo(() => [
-    { value: 'internet_down', label: 'Complete Internet Outage', icon: 'wifi-off' },
-    { value: 'slow_connection', label: 'Slow Connection Speed', icon: 'wifi' },
+    { value: 'internet_down', label: 'Complete Internet Outage', icon: 'wifi-off', library: 'Feather' },
+    { value: 'slow_connection', label: 'Slow Connection Speed', icon: 'signal-wifi-statusbar-connected-no-internet-4', library:'MaterialIcons' },
     { value: 'intermittent', label: 'Intermittent Connection Issues', icon: 'warning' },
     { value: 'billing_issue', label: 'Billing Problem', icon: 'card' },
     { value: 'equipment_fault', label: 'Equipment Malfunction', icon: 'hardware-chip' },
@@ -139,9 +141,10 @@ const ProblemReportModal = React.memo(({ isOpen, onClose, onSubmit, selectedAcco
       account: selectedAccount,
       timestamp: new Date().toISOString()
     };
-
+    // https://weatherapp-rxwp.onrender.com/webhook-test/send averia
+    // http://192.168.18.116:5678/webhook/send averia
     try {
-      const response = await fetch("http://192.168.100.75:5678/webhook/send averia", {
+      const response = await fetch("https://weatherapp-rxwp.onrender.com/webhook/send averia", {
         method: "POST",
         headers: {
           "Content-Type": "application/json"
@@ -207,36 +210,54 @@ const ProblemReportModal = React.memo(({ isOpen, onClose, onSubmit, selectedAcco
           enableAutomaticScroll={true}
           extraHeight={50}
         >
-          {/* Problem Type Selection */}
-          <View style={styles.section}>
-            <Text style={styles.sectionTitle}>
-              What type of problem are you experiencing?
-            </Text>
-            {problemTypes.map((type) => (
-              <TouchableOpacity
-                key={type.value}
-                onPress={() => setProblemType(type.value)}
-                style={[
-                  styles.problemTypeButton,
-                  problemType === type.value && styles.selectedProblemType
-                ]}
-                activeOpacity={0.7}
-                disabled={isSubmitting}
-              >
-                <Ionicons 
-                  name={type.icon} 
-                  size={20} 
-                  color={problemType === type.value ? '#3B82F6' : '#6B7280'} 
+        {/* Problem Type Selection */}
+        <View style={styles.section}>
+          <Text style={styles.sectionTitle}>
+            What type of problem are you experiencing?
+          </Text>
+          {problemTypes.map((type) => (
+            <TouchableOpacity
+              key={type.value}
+              onPress={() => setProblemType(type.value)}
+              style={[
+                styles.problemTypeButton,
+                problemType === type.value && styles.selectedProblemType
+              ]}
+              activeOpacity={0.7}
+              disabled={isSubmitting}
+            >
+              {/* Dynamically render icon based on library */}
+              {type.library === 'Feather' ? (
+                <Feather
+                  name={type.icon}
+                  size={20}
+                  color={problemType === type.value ? '#3B82F6' : '#6B7280'}
                 />
-                <Text style={[
+              ) : type.library === 'MaterialIcons' ? (
+                <MaterialIcons
+                  name={type.icon}
+                  size={20}
+                  color={problemType === type.value ? '#3B82F6' : '#6B7280'}
+                />
+              ) : (
+                <Ionicons
+                  name={type.icon}
+                  size={20}
+                  color={problemType === type.value ? '#3B82F6' : '#6B7280'}
+                />
+              )}
+
+              <Text
+                style={[
                   styles.problemTypeText,
                   problemType === type.value && styles.selectedProblemTypeText
-                ]}>
-                  {type.label}
-                </Text>
-              </TouchableOpacity>
-            ))}
-          </View>
+                ]}
+              >
+                {type.label}
+              </Text>
+            </TouchableOpacity>
+          ))}
+        </View>
 
           {/* Description */}
           <View style={styles.section}>
@@ -401,7 +422,8 @@ export default function App() {
   const inputRef = useRef(null);
   
   // Configuration
-  const WEBHOOK_URL = 'http://192.168.100.75:5678/webhook/ask-question';
+  // const WEBHOOK_URL = 'http://192.168.18.116:5678/webhook-test/ask-question';
+  const WEBHOOK_URL = 'https://weatherapp-rxwp.onrender.com/webhook/ask-question';
 
   const quickActions = useMemo(() => [
     { title: "Balance Inquiry", icon: "card", query: "What is my current account balance?" },
@@ -470,7 +492,11 @@ export default function App() {
     try {
       const controller = new AbortController();
       const timeoutId = setTimeout(() => controller.abort(), 30000); // 30 second timeout
-
+      const dateNow = new Date();
+      const yyyy = dateNow.getFullYear();
+      const mm = String(dateNow.getMonth() + 1).padStart(2, '0');
+      const dd = String(dateNow.getDate()).padStart(2, '0');
+      const formattedDate = `${yyyy}-${mm}-${dd}`;
       const response = await fetch(WEBHOOK_URL, {
         method: 'POST',
         headers: {
@@ -479,6 +505,8 @@ export default function App() {
         body: JSON.stringify({
           question: messageText,
           accountNumber: selectedAccount,
+          sessionId: selectedAccount,
+          date:formattedDate
         }),
         signal: controller.signal,
       });
