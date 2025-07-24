@@ -141,7 +141,7 @@ const ProblemReportModal = React.memo(({ isOpen, onClose, onSubmit, selectedAcco
     };
 
     try {
-      const response = await fetch("http://192.168.18.116:5678/webhook/send averia", {
+      const response = await fetch("http://192.168.100.75:5678/webhook/send averia", {
         method: "POST",
         headers: {
           "Content-Type": "application/json"
@@ -152,12 +152,19 @@ const ProblemReportModal = React.memo(({ isOpen, onClose, onSubmit, selectedAcco
       if (!response.ok) {
         throw new Error("Failed to send problem report");
       }
-
+      
       const result = await response.json();
       console.log("Report submitted successfully:", result);
 
-      onSubmit?.(problemData);
+      let aiResponse = '';
+        if (result && Array.isArray(result) && result.length > 0 && result[0].output) {
+          aiResponse = result[0].output;
+      }
+      
+      // Pass the AI response to handleProblemSubmit
+      onSubmit?.(problemData, aiResponse);
       onClose();
+      
     } catch (error) {
       console.error("Error submitting report:", error);
       Alert.alert(
@@ -381,7 +388,7 @@ export default function App() {
   const [messages, setMessages] = useState([
     {
       id: 1,
-      text: "Hello! I'm your Account Assistant. I can help you check your balance, disconnection date, internet plan details, and report any problems you're experiencing. What would you like to know?",
+      text: "Hello! I'm your Account Assistant. I can help you check your balance, disconnection date, account summary, and report any problems you're experiencing. What would you like to know?",
       isUser: false,
       timestamp: Date.now(),
     }
@@ -394,15 +401,13 @@ export default function App() {
   const inputRef = useRef(null);
   
   // Configuration
-  const WEBHOOK_URL = 'http://192.168.18.116:5678/webhook/ask-question';
+  const WEBHOOK_URL = 'http://192.168.100.75:5678/webhook/ask-question';
 
   const quickActions = useMemo(() => [
     { title: "Balance Inquiry", icon: "card", query: "What is my current account balance?" },
     { title: "Disconnection Date", icon: "calendar", query: "When is my disconnection date?" },
-    { title: "Internet Plan", icon: "globe", query: "What is my current internet plan?" },
     { title: "Account Summary", icon: "stats-chart", query: "Show me my account summary" },
-    { title: "Report Internet Problem", icon: "wifi-off", action: 'report_problem' },
-    { title: "Report Billing Issue", icon: "warning", action: 'report_billing' },
+    { title: "Report an Issue", icon: "warning", action: 'report_problem' },
   ], []);
 
   // Keyboard event handlers
@@ -525,14 +530,14 @@ export default function App() {
   const handleQuickAction = useCallback((action) => {
     if (loading) return;
     
-    if (action.action === 'report_problem' || action.action === 'report_billing') {
+    if (action.action === 'report_problem') {
       setShowProblemModal(true);
     } else if (action.query) {
       sendMessage(action.query);
     }
   }, [sendMessage, loading]);
 
-  const handleProblemSubmit = useCallback((problemData) => {
+  const handleProblemSubmit = useCallback((problemData, aiResponse = null) => {
     const problemTypeLabels = {
       'internet_down': 'Complete Internet Outage',
       'slow_connection': 'Slow Connection Speed',
@@ -542,14 +547,27 @@ export default function App() {
       'other': 'Other Issue'
     };
 
-    const ticketId = `#${Date.now().toString().slice(-6)}`;
-    
-    const problemMessage = {
-      id: Date.now(),
-      text: `🔧 Problem Report Submitted:\n\nType: ${problemTypeLabels[problemData.type] || problemData.type}\nDescription: ${problemData.description}\nAccount: ${problemData.account}\nTicket ID: ${ticketId}\n\nA support ticket has been created and our team will contact you within 24 hours.`,
-      isUser: false,
-      timestamp: Date.now(),
-    };
+    let problemMessage;
+
+    // If there's an AI response (account disconnected), display that instead
+    if (aiResponse && aiResponse.trim() !== '') {
+      problemMessage = {
+        id: Date.now(),
+        text: `🚫 Account Status Alert:\n\n${aiResponse}`,
+        isUser: false,
+        timestamp: Date.now(),
+      };
+    } else {
+      // Normal ticket creation flow
+      const ticketId = `#${Date.now().toString().slice(-6)}`;
+      
+      problemMessage = {
+        id: Date.now(),
+        text: `🔧 Problem Report Submitted:\n\nType: ${problemTypeLabels[problemData.type] || problemData.type}\nDescription: ${problemData.description}\nAccount: ${problemData.account}\nTicket ID: ${ticketId}\n\nA support ticket has been created and our team will contact you within 24 hours.`,
+        isUser: false,
+        timestamp: Date.now(),
+      };
+    }
 
     setMessages(prev => [...prev, problemMessage]);
   }, []);
@@ -645,8 +663,13 @@ export default function App() {
           {showQuickActions && (
             <View style={styles.quickActionsContainer}>
               <Text style={styles.quickActionsTitle}>Quick Actions</Text>
-              <View style={styles.quickActionsGrid}>
-                {quickActions.map((action) => (
+              <ScrollView 
+                horizontal
+                showsHorizontalScrollIndicator={false}
+                style={styles.quickActionsScrollView}
+                contentContainerStyle={styles.quickActionsContent}
+              >
+                {quickActions.map((action, index) => (
                   <QuickActionButton
                     key={action.title}
                     title={action.title}
@@ -655,7 +678,7 @@ export default function App() {
                     disabled={loading}
                   />
                 ))}
-              </View>
+              </ScrollView>
             </View>
           )}
 
@@ -953,10 +976,11 @@ const styles = StyleSheet.create({
     color: '#111827',
     marginBottom: 12,
   },
-  quickActionsGrid: {
-    flexDirection: 'row',
-    flexWrap: 'wrap',
-    justifyContent: 'space-between',
+  quickActionsScrollView: {
+    flexGrow: 0,
+  },
+  quickActionsContent: {
+    paddingRight: 16,
   },
   quickActionButton: {
     backgroundColor: 'white',
@@ -965,8 +989,8 @@ const styles = StyleSheet.create({
     borderRadius: 12,
     padding: 12,
     alignItems: 'center',
-    width: '48%',
-    marginBottom: 8,
+    width: 120,
+    marginRight: 12,
     shadowColor: '#000',
     shadowOffset: { width: 0, height: 1 },
     shadowOpacity: 0.05,
