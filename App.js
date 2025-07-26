@@ -60,11 +60,12 @@ const ProblemReportModal = React.memo(({ isOpen, onClose, onSubmit, selectedAcco
       });
 
       if (!response.ok) throw new Error("Failed to send problem report");
-      
+
       const result = await response.json();
       let aiResponse = '';
       if (result && Array.isArray(result) && result.length > 0 && result[0].output) {
         aiResponse = result[0].output;
+       const success = "Inserted";
       }
       
       onSubmit?.(problemData, aiResponse);
